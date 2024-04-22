@@ -20,12 +20,12 @@ nid_links = soup.find_all('a', href=lambda href: href and "company_read.naver?ni
 
 # 각 링크에 대해 PDF 파일 다운로드
 for link in nid_links:
-    report_url = f"https://finance.naver.com{link['href']}"
+    report_url = f"https://finance.naver.com/research/{link['href']}"  # 슬래시 누락 오류 수정
     report_page_response = requests.get(report_url, headers=headers)
     report_page_response.raise_for_status()
     report_soup = BeautifulSoup(report_page_response.text, 'html.parser')
 
-    pdf_link_tag = report_soup.find('a', class_='btn_pdf')
+    pdf_link_tag = report_soup.find('a', class_='con_link')
     if pdf_link_tag:
         pdf_url = pdf_link_tag['href']
         pdf_response = requests.get(pdf_url)
