@@ -2,34 +2,41 @@ import requests
 from bs4 import BeautifulSoup
 import os
 
-# 웹 페이지 URL
-url = "https://finance.naver.com/research/company_read.naver?nid=72925"
+# 기본 URL 설정
+base_url = "https://finance.naver.com/research/company_list.naver"
 
-# 웹 페이지를 요청하고 HTML을 파싱
-response = requests.get(url)
-response.raise_for_status()  # HTTP 요청 에러 체크
-soup = BeautifulSoup(response.text, 'html.parser')
+# User-Agent 설정
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+}
 
-# PDF 링크 찾기
-# 두 번째 <a> 태그 내에서 PDF 링크를 찾음
-pdf_link_tag = soup.find('a', class_='con_link', href=True)
-if pdf_link_tag:
-    pdf_url = pdf_link_tag['href']
+# 페이지에서 리포트 링크를 찾기
+list_page_response = requests.get(base_url, headers=headers)
+list_page_response.raise_for_status()
+soup = BeautifulSoup(list_page_response.text, 'html.parser')
 
-    # PDF 파일 요청 및 저장
-    pdf_response = requests.get(pdf_url)
-    pdf_response.raise_for_status()
+# 'company_read.naver?nid=' 링크 추출
+nid_links = soup.find_all('a', href=lambda href: href and "company_read.naver?nid=" in href, limit=5)
 
-    # PDF 파일 이름 생성
-    pdf_file_name = pdf_url.split('/')[-1]
+# 각 링크에 대해 PDF 파일 다운로드
+for link in nid_links:
+    report_url = f"https://finance.naver.com{link['href']}"
+    report_page_response = requests.get(report_url, headers=headers)
+    report_page_response.raise_for_status()
+    report_soup = BeautifulSoup(report_page_response.text, 'html.parser')
 
-    # PDF 파일 저장 경로 설정
-    save_path = os.path.join(os.getcwd(), pdf_file_name)
+    pdf_link_tag = report_soup.find('a', class_='btn_pdf')
+    if pdf_link_tag:
+        pdf_url = pdf_link_tag['href']
+        pdf_response = requests.get(pdf_url)
+        pdf_response.raise_for_status()
 
-    # PDF 파일 로컬에 저장
-    with open(save_path, 'wb') as file:
-        file.write(pdf_response.content)
+        pdf_file_name = pdf_url.split('/')[-1]
+        save_path = os.path.join(os.getcwd(), pdf_file_name)
 
-    print(f'PDF 파일이 성공적으로 다운로드 되었습니다: {save_path}')
-else:
-    print('PDF 링크를 찾을 수 없습니다.')
+        with open(save_path, 'wb') as file:
+            file.write(pdf_response.content)
+
+        print(f'PDF 파일이 성공적으로 다운로드 되었습니다: {save_path}')
+    else:
+        print(f'PDF 링크를 찾을 수 없습니다: {report_url}')
