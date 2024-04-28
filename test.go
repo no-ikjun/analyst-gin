@@ -1,17 +1,96 @@
 package main
 
 import (
+	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-resty/resty/v2"
+	"github.com/joho/godotenv"
 )
+
+// Response and Item structs to hold API response data
+type ApiResponse struct {
+  Response ResponseBody `json:"response"`
+}
+
+type ResponseBody struct {
+  Header  ResponseHeader `json:"header"`
+  Body    ResponseBodyDetails `json:"body"`
+}
+
+type ResponseHeader struct {
+  ResultCode string `json:"resultCode"`
+  ResultMsg  string `json:"resultMsg"`
+}
+
+type ResponseBodyDetails struct {
+  NumOfRows  int    `json:"numOfRows"`
+  PageNo     int    `json:"pageNo"`
+  TotalCount int    `json:"totalCount"`
+  Items      ItemsWrapper `json:"items"`
+}
+
+type ItemsWrapper struct {
+  Item []StockItem `json:"item"`
+}
+
+type StockItem struct {
+  BasDt        string `json:"basDt"`
+  SrtnCd       string `json:"srtnCd"`
+  IsinCd       string `json:"isinCd"`
+  ItmsNm       string `json:"itmsNm"`
+  MrktCtg      string `json:"mrktCtg"`
+  Clpr         string `json:"clpr"`
+  Vs           string `json:"vs"`
+  FltRt        string `json:"fltRt"`
+  Mkp          string `json:"mkp"`
+  Hipr         string `json:"hipr"`
+  Lopr         string `json:"lopr"`
+  Trqu         string `json:"trqu"`
+  TrPrc        string `json:"trPrc"`
+  LstgStCnt    string `json:"lstgStCnt"`
+  MrktTotAmt   string `json:"mrktTotAmt"`
+}
+
+func getSocketPrice(c *gin.Context) {
+  client := resty.New()
+  client.SetRetryCount(3).SetRetryWaitTime(2).SetRetryMaxWaitTime(8)
+  client.SetTimeout(10 * time.Second)
+  client.SetDebug(true)
+
+  env_err := godotenv.Load(".env")
+  if env_err != nil {
+    log.Printf("Failed to load .env file: %s", env_err)
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load .env file"})
+    return
+  }
+  
+  serviceKey := os.Getenv("SERVICE_KEY")
+  url := "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
+  url += "?serviceKey=" + serviceKey
+  url += "&numOfRows=1&pageNo=1&resultType=json"
+
+  resp, _ := client.R().
+    SetQueryParam("serviceKey", serviceKey).
+    SetQueryParam("numOfRows", "10").
+    SetQueryParam("pageNo", "1").
+    SetQueryParam("resultType", "json").
+    Get(url)
+
+  
+c.Data(resp.StatusCode(), "application/json", resp.Body())
+}
 
 func main() {
   r := gin.Default()
+  r.GET("/stockprice", getSocketPrice)
   r.GET("/ping", func(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{
       "message": "pong",
     })
   })
-  r.Run()
+  r.Run(":8080")
 }
