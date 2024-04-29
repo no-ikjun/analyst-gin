@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/analyst-gin/stockprice"
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
 	"github.com/joho/godotenv"
@@ -55,9 +57,13 @@ type StockItem struct {
   MrktTotAmt   string `json:"mrktTotAmt"`
 }
 
-func getSocketPrice(c *gin.Context) {
+func getStockPrice(c *gin.Context) {
   client := resty.New()
-  client.SetRetryCount(3).SetRetryWaitTime(2).SetRetryMaxWaitTime(8)
+  client.SetTLSClientConfig(&tls.Config{
+    MinVersion: tls.VersionTLS12,
+    // InsecureSkipVerify: true, // 이 옵션은 보안에 위험하므로 신중히 사용해야 합니다.
+})
+  client.SetRetryCount(3).SetRetryWaitTime(8).SetRetryMaxWaitTime(8)
   client.SetTimeout(10 * time.Second)
   client.SetDebug(true)
 
@@ -71,10 +77,9 @@ func getSocketPrice(c *gin.Context) {
   serviceKey := os.Getenv("SERVICE_KEY")
   url := "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
   url += "?serviceKey=" + serviceKey
-  url += "&numOfRows=1&pageNo=1&resultType=json"
+  // url += "&numOfRows=1&pageNo=1&resultType=json"
 
   resp, _ := client.R().
-    SetQueryParam("serviceKey", serviceKey).
     SetQueryParam("numOfRows", "10").
     SetQueryParam("pageNo", "1").
     SetQueryParam("resultType", "json").
@@ -86,7 +91,8 @@ c.Data(resp.StatusCode(), "application/json", resp.Body())
 
 func main() {
   r := gin.Default()
-  r.GET("/stockprice", getSocketPrice)
+  stockprice.GetStockPrice()
+  r.GET("/stockprice", getStockPrice)
   r.GET("/ping", func(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{
       "message": "pong",
